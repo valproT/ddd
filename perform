@@ -16,6 +16,12 @@ export TASK_3_BUCKET=
 export TASK_4_BUCKET=
 
 
+
+gcloud ml speech recognize-long-running gs://cloud-training/gsp323/task3.flac --language-code=en-US > transcription_result.json
+
+gsutil cp transcription_result.json gs://qwiklabs-gcp-00-6adbbe1bf59b-marking/task3-gcs-711.result
+
+
 task 3 :
 
 gcloud iam service-accounts create Awesome \
