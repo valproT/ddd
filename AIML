@@ -1,104 +1,49 @@
+# Run in cloudshell
+
 REGION=
-Dataset=
-TABLE=
-TASK_3=
-TASK_4=
 
-PROJECT_ID=$(gcloud config get-value project)
-target=$Dataset.$TABLE
-bucket_name=$PROJECT_ID-marking
+# BigQuery output table from Task 1 Table
 
-bq mk $Dataset
-gsutil mb gs://$bucket_name
+BigQuery_output_table=
 
------------------------------------------------------------------------------------------------------------------------------
-
-cat > table.py <<EOF
-from google.cloud import bigquery
-
-# Construct a BigQuery client object.
-client = bigquery.Client()
-
-
-table_id = "$PROJECT_ID.$Dataset.TABLE"
-
-schema = [
-    bigquery.SchemaField("guid", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("isActive", "BOOLEAN", mode="NULLABLE"),
-    bigquery.SchemaField("firstname", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("surname", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("company", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("email", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("phone", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("address", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("about", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("registered", "TIMESTAMP", mode="NULLABLE"),
-    bigquery.SchemaField("latitude", "FLOAT", mode="NULLABLE"),
-    bigquery.SchemaField("longitude", "FLOAT", mode="NULLABLE"),
-]
-
-table = bigquery.Table(table_id, schema=schema)
-table = client.create_table(table)  # Make an API request.
-print(
-    "Created table {}.{}.{}".format(table.project, table.dataset_id, table.table_id)
-)
+cat << EOF > s.py
+input_string = "$BigQuery_output_table"
+parts = input_string.split(':')
+LAB_NAME = parts[1].split('.')[0]
+CUSTOMERS = parts[1].split('.')[1]
+print("LAB_NAME:", LAB_NAME)
+print("CUSTOMERS:", CUSTOMERS)
 EOF
-
---------------------------------------------------------------------------------------------------------------------------
-
-python3 table.py
-
-gcloud dataflow jobs run lab-transform --gcs-location gs://dataflow-templates-$REGION/latest/GCS_Text_to_BigQuery --worker-machine-type e2-standard-2 --region $REGION --staging-location gs://$PROJECT_ID-marking/temp --parameters javascriptTextTransformGcsPath=gs://cloud-training/gsp323/lab.js,JSONPath=gs://cloud-training/gsp323/lab.schema,javascriptTextTransformFunctionName=transform,outputTable=$PROJECT_ID:$Dataset.$TABLE,inputFilePattern=gs://cloud-training/gsp323/lab.csv,bigQueryLoadingTemporaryDirectory=gs://$PROJECT_ID-marking/bigquery_temp
-
-
---------------------------------------------------------------------------------------------------------------------------
-
-
-gcloud dataproc clusters create cluster-f357 --region $REGION --zone $REGION-a --master-machine-type e2-standard-2 --master-boot-disk-size 500 --num-workers 2 --worker-machine-type e2-standard-2 --worker-boot-disk-size 500 --image-version 2.0-debian10 --project $PROJECT_ID
+output=$(python s.py)
+LAB_NAME=$(echo "$output" | awk '/LAB_NAME:/ {print $2}')
+CUSTOMERS=$(echo "$output" | awk '/CUSTOMERS:/ {print $2}')
+bq mk $LAB_NAME
+gsutil mb gs://$DEVSHELL_PROJECT_ID-marking/
+gsutil cp gs://cloud-training/gsp323/lab.csv  .
+gsutil cp gs://cloud-training/gsp323/lab.schema .
+gcloud dataflow jobs run Cloudhustler --gcs-location gs://dataflow-templates-$REGION/latest/GCS_Text_to_BigQuery --region $REGION --worker-machine-type e2-standard-2 --staging-location gs://$DEVSHELL_PROJECT_ID-marking/temp --parameters javascriptTextTransformGcsPath=gs://cloud-training/gsp323/lab.js,JSONPath=gs://cloud-training/gsp323/lab.schema,javascriptTextTransformFunctionName=transform,outputTable=$BigQuery_output_table,inputFilePattern=gs://cloud-training/gsp323/lab.csv,bigQueryLoadingTemporaryDirectory=gs://$DEVSHELL_PROJECT_ID-marking/bigquery_temp
+gcloud dataproc clusters create cluster-b53a --region $REGION --master-machine-type e2-standard-2 --master-boot-disk-size 500 --num-workers 2 --worker-machine-type e2-standard-2 --worker-boot-disk-size 500 --image-version 2.1-debian11 --project $DEVSHELL_PROJECT_ID
 
 
---------------------------------------------------------------------------------------------------------------------------
-gcloud beta compute ssh cluster-f357-w-0 -- -vvv
+# API & Credintials > Create Credintials > API KEY > Copy it
+# RUN IN ANOTHER SHELL
 
---------------------------------------------------------------------------------------------------------------------------
+API_KEY=
+Bucket_TASK_3=
+Bucket_TASK_4=
 
-
-hdfs dfs -cp gs://cloud-training/gsp323/data.txt /data.txt
-
-
---------------------------------------------------------------------------------------------------------------------------
-
-gcloud config set dataproc/region $REGION
-gcloud dataproc jobs submit spark --cluster cluster-f357 \
-  --class org.apache.spark.examples.SparkPageRank \
-  --cluster=cluster-f357 \
-  --jars file:///usr/lib/spark/examples/jars/spark-examples.jar -- /data.txt
-
-
---------------------------------------------------------------------------------------------------------------------------
-
-gcloud services enable apikeys.googleapis.com
-gcloud alpha services api-keys create --display-name="testname" 
-KEY_NAME=$(gcloud alpha services api-keys list --format="value(name)" --filter "displayName=testname")
-API_KEY=$(gcloud alpha services api-keys get-key-string $KEY_NAME --format="value(keyString)")
-echo $API_KEY
-
-
---------------------------------------------------------------------------------------------------------------------------
-
-gcloud iam service-accounts create techvine \
+gcloud iam service-accounts create cloushustler \
   --display-name "my natural language service account"
 gcloud iam service-accounts keys create ~/key.json \
-  --iam-account techvine@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com
-export GOOGLE_APPLICATION_CREDENTIALS="/home/$USER/key.json"
-gcloud auth activate-service-account techvine@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+  --iam-account cloushustler@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com
+cloud="/home/$USER/key.json"
+gcloud auth activate-service-account cloushustler@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com --key-file=$cloud
 gcloud ml language analyze-entities --content="Old Norse texts portray Odin as one-eyed and long-bearded, frequently wielding a spear named Gungnir and wearing a cloak and a broad hat." > result.json
 gcloud auth login --no-launch-browser
 
 
---------------------------------------------------------------------------------------------------------------------------
 
-gsutil cp result.json $TASK_4
+gsutil cp result.json $Bucket_TASK_4
 cat > request.json <<EOF 
 {
   "config": {
@@ -112,9 +57,9 @@ cat > request.json <<EOF
 EOF
 curl -s -X POST -H "Content-Type: application/json" --data-binary @request.json \
 "https://speech.googleapis.com/v1/speech:recognize?key=${API_KEY}" > result.json
-gsutil cp result.json $TASK_3
-gcloud iam service-accounts create quickstart
-gcloud iam service-accounts keys create key.json --iam-account quickstart@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com
+gsutil cp result.json $Bucket_TASK_3
+gcloud iam service-accounts create cloudhus
+gcloud iam service-accounts keys create key.json --iam-account cloudhus@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com
 gcloud auth activate-service-account --key-file key.json
 export ACCESS_TOKEN=$(gcloud auth print-access-token)
 cat > request.json <<EOF 
@@ -125,9 +70,6 @@ cat > request.json <<EOF
    ]
 }
 EOF
-
---------------------------------------------------------------------------------------------------------------------------
-
 curl -s -H 'Content-Type: application/json' \
     -H "Authorization: Bearer $ACCESS_TOKEN" \
     'https://videointelligence.googleapis.com/v1/videos:annotate' \
@@ -135,4 +77,18 @@ curl -s -H 'Content-Type: application/json' \
 curl -s -H 'Content-Type: application/json' -H "Authorization: Bearer $ACCESS_TOKEN" 'https://videointelligence.googleapis.com/v1/operations/OPERATION_FROM_PREVIOUS_REQUEST' > result1.json
 
 
+# Search Dataproc > Click on cluster-b53a
+Vm Instance > ssh > hdfs dfs -cp gs://cloud-training/gsp323/data.txt /data.txt
 
+From left pannel select jobs > Submit job
+Region From LAB > Cluster cluster-b53a > Job type spark
+
+Main class or jar org.apache.spark.examples.SparkPageRank
+
+Jar files file:///usr/lib/spark/examples/jars/spark-examples.jar
+
+Arguments /data.txt
+
+Max restarts per hour 1
+
+SUBMIT
