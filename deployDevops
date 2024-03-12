@@ -1,3 +1,5 @@
+#Task 1- First execute code from task
+
 export PROJECT_ID=
 export CLUSTER_NAME=
 export ZONE=
@@ -59,7 +61,7 @@ git branch dev
 git checkout dev
 git push -u origin dev
 
-
+Task 3:- Triggers->create 2 triggers
 TASK 4:-
 
 COMMIT_ID="$(git rev-parse --short=7 HEAD)"
