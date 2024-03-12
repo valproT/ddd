@@ -67,7 +67,7 @@ TASK 4:-
 COMMIT_ID="$(git rev-parse --short=7 HEAD)"
 gcloud builds submit --tag="${REGION}-docker.pkg.dev/${PROJECT_ID}/$REPO/hello-cloudbuild:${COMMIT_ID}" .
 
-
+# open text editor
 
 git add .
 git commit -m "Subscribe to quicklab" 
